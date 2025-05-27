@@ -12,16 +12,17 @@ public class LevelGenerator : MonoBehaviour
     private int floorPlanCount;
     private int minRooms;
     private int maxRooms;
-    private List<int> endRooms;
-    private int bossRoomIndex;
-    private int secretRoomIndex;
-    private int shopRoomIndex;
-    private int itemRoomIndex;
+
+    // Evento que se dispara cuando se genera un nuevo dungeon
+    public static event Action OnDungeonGenerated;
+
+
     public Cell cellPrefab;
     private float cellSize;
     private Queue<int> cellQueue;
     private List<Cell> spawnedCells;
-
+    public int[] FloorPlan => floorPlan;
+    public List<Cell> SpawnedCells => spawnedCells;
 
     [Header("Sprite References")]
     [SerializeField] private Sprite item;
@@ -31,11 +32,11 @@ public class LevelGenerator : MonoBehaviour
 
     // Start is called before the first frame update
 
-    void Start()
+    void Awake()
     {
-        minRooms = 7; 
-        maxRooms = 15;
-        cellSize = 0.5f;
+        minRooms = 30; 
+        maxRooms = 40;
+        cellSize = 0.6f;
         spawnedCells = new();
 
         SetupDungeon();
@@ -60,9 +61,10 @@ public class LevelGenerator : MonoBehaviour
         floorPlan = new int[100];
         floorPlanCount = default;
         cellQueue  = new Queue<int>();
-        endRooms = new List<int>();
         VisitCell(45);
         GenerateDungeon();
+
+        OnDungeonGenerated?.Invoke();
     }
 
 
@@ -73,57 +75,51 @@ public class LevelGenerator : MonoBehaviour
             int index = cellQueue.Dequeue();
             int x = index % 10;
 
-            bool created = false;
-            
-            if (x > 1) created |= VisitCell(index - 1);
-            if (x < 9) created |= VisitCell(index + 1);
-            if (index > 20) created |= VisitCell(index - 10);
-            if (index < 70) created |= VisitCell(index + 10);
-            
-            if (created == false)
-            {
-                endRooms.Add(index);
-            }
-
+            // Intentar crear habitaciones en todas las direcciones adyacentes válidas
+            if (x > 0) VisitCell(index - 1);         // Izquierda
+            if (x < 9) VisitCell(index + 1);         // Derecha
+            if (index >= 10) VisitCell(index - 10);  // Arriba
+            if (index < 90) VisitCell(index + 10);   // Abajo
         }
-        
+
+        // Si se generaron muy pocas habitaciones, reiniciar
         if (floorPlanCount < minRooms)
         {
             SetupDungeon();
             return;
         }
-
-        SetupSpecialRooms();
-
     }
-    
 
-    
-    void SetupSpecialRooms()
+
+
+    private int GetNeighbourCount(int index)
     {
+        int count = 0;
 
+        int width = 10; // ancho del mapa
+        int height = 10; // alto del mapa
+        int totalSize = width * height;
+
+        int x = index % width;
+        int y = index / width;
+
+        // Arriba
+        if (y > 0) count += floorPlan[index - width];
+        // Abajo
+        if (y < height - 1) count += floorPlan[index + width];
+        // Izquierda
+        if (x > 0) count += floorPlan[index - 1];
+        // Derecha
+        if (x < width - 1) count += floorPlan[index + 1];
+
+        return count;
     }
-        
-    void UpdateSpecialRoomsVisuals()
-    {
 
-    }
-
-    int PickSecretRoom()
-    {
-        return -1;
-    }
-
-
-    private int GetNeightbourCount(int index)
-    {
-        return floorPlan[index - 10] + floorPlan[index - 1] + floorPlan[index + 1] + floorPlan[index + 10];
-    }
 
 
     private bool VisitCell(int index)
     {
-        if (floorPlan[index] != 0 || GetNeightbourCount(index) > 1 || floorPlanCount > maxRooms || UnityEngine.Random.value < 0.5f)
+        if (floorPlan[index] != 0 || GetNeighbourCount(index) > 2 || floorPlanCount > maxRooms || UnityEngine.Random.value < 0.3f)
         {
             return false;
         }
